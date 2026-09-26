@@ -1,387 +1,510 @@
-/// TODO:
-/// 显然的，原生 QComboBox 的下拉列表样式并不符合 Material Design
-/// 规范，未来必须切换成自定义的组件，相关参考：
-/// - https://m3.material.io/components/menus/guidelines
-/// - https://api.flutter.dev/flutter/material/DropdownMenu-class.html
-
 #pragma once
 #include "dropdown-menu.hh"
 
 #include "creeper-qt/utility/animation/animatable.hh"
-#include "creeper-qt/utility/animation/state/pid.hh"
+#include "creeper-qt/utility/animation/state/spring.hh"
 #include "creeper-qt/utility/animation/transition.hh"
-#include "creeper-qt/utility/material-icon.hh"
 #include "creeper-qt/utility/painter/helper.hh"
+#include "creeper-qt/widget/dropdown-menu-item.hh"
 
-#include <qabstractitemview.h>
-#include <qfontmetrics.h>
+#include <algorithm>
+#include <array>
 
-using namespace creeper::dropdown_menu::internal;
+#include <qboxlayout.h>
+#include <qdebug.h>
+#include <qevent.h>
+#include <qgraphicseffect.h>
+#include <qlist.h>
+#include <qpainter.h>
+#include <qscreen.h>
+#include <qtimer.h>
+
+using namespace creeper::dropdown_menu::details;
+
+using MenuItemDetails = creeper::dropdown_menu_item::details::DropdownMenuItem;
 
 struct DropdownMenu::Impl {
 public:
+    static constexpr auto kContainerVPadding = 8;
+
+    static constexpr auto kWindowVMargin = 48;
+    static constexpr auto kWindowHMargin = 8;
+
+    static constexpr auto kShadowBlurRadius = 10;
+    static constexpr auto kShadowOffsetY    = 2;
+    static constexpr auto kShadowMargin     = 16;
+    static constexpr auto kShadowOpacity    = 0.28;
+
+    // M3 spec: 菜单容器最小宽度 112dp，最大宽度 280dp
+    static constexpr auto kMinMenuWidth = 112;
+    static constexpr auto kMaxMenuWidth = 280;
+
+    QWidget* container          = nullptr;
+    QWidget* viewport           = nullptr;
+    QVBoxLayout* content_layout = nullptr;
+
+    QWidget* anchor_widget = nullptr;
+    QWidget* filter_anchor = nullptr;
+    QPoint offset { 0, 0 };
+
+    QColor theme_container_color;
+    QColor container_color_override;
+    double corner_radius                           = 4.0;
+    QGraphicsDropShadowEffect* shadow_effect       = nullptr;
+    QGraphicsOpacityEffect* content_opacity_effect = nullptr;
+
+    QPointF transform_origin { 0.5, 0.0 };
+
+    int scroll_offset   = 0;
+    int highlight_index = -1;
+
+    bool expanded_          = false;
+    bool closing            = false;
+    bool programmatic_close = false;
+
+    Animatable animatable;
+    std::unique_ptr<TransitionValue<SpringState<double>>> scale;
+    std::unique_ptr<TransitionValue<SpringState<double>>> opacity;
+
+    DropdownMenu& self;
+
     explicit Impl(DropdownMenu& self) noexcept
-        : animatable(self)
+        : animatable { self }
         , self { self } {
+        self.setAttribute(Qt::WA_TranslucentBackground);
         {
-            auto state            = std::make_shared<PidState<double>>();
-            state->config.kp      = 20.0;
-            state->config.ki      = 00.0;
-            state->config.kd      = 00.0;
-            state->config.epsilon = 1e-2;
-            label_position        = make_transition(animatable, std::move(state));
+            auto effect = new QGraphicsDropShadowEffect { &self };
+            effect->setBlurRadius(kShadowBlurRadius);
+            effect->setOffset(0, kShadowOffsetY);
+            self.setGraphicsEffect(effect);
+            shadow_effect = effect;
+        }
+        {
+            auto state            = std::make_shared<SpringState<double>>();
+            state->config.k       = 1400.0;
+            state->config.d       = 67.35;
+            state->config.epsilon = 1e-3;
+            scale                 = make_transition(animatable, std::move(state));
+        }
+        {
+            auto state            = std::make_shared<SpringState<double>>();
+            state->config.k       = 3800.0;
+            state->config.d       = 123.29;
+            state->config.epsilon = 1e-3;
+            opacity               = make_transition(animatable, std::move(state));
         }
 
-        set_measurements(Measurements {});
+        container = new QWidget { &self };
+        viewport  = new QWidget { container };
+
+        // 菜单项是独立子 widget，不随 paintEvent 中的 painter 透明度变化，
+        // 需要用 QGraphicsOpacityEffect 让整棵内容子树随展开动画一同渐变
+        {
+            auto effect = new QGraphicsOpacityEffect { container };
+            effect->setOpacity(1.0);
+            container->setGraphicsEffect(effect);
+            content_opacity_effect = effect;
+        }
+
+        content_layout = new QVBoxLayout { viewport };
+        content_layout->setContentsMargins(0, kContainerVPadding, 0, kContainerVPadding);
+        content_layout->setSpacing(0);
     }
 
     auto set_color_scheme(const ColorScheme& scheme) -> void {
-        color_space.enabled.container        = scheme.surface_container_highest;
-        color_space.enabled.label_text       = scheme.on_surface_variant;
-        color_space.enabled.selected_text    = scheme.on_surface;
-        color_space.enabled.leading_icon     = scheme.on_surface_variant;
-        color_space.enabled.active_indicator = scheme.on_surface_variant;
-        color_space.enabled.supporting_text  = scheme.on_surface_variant;
-        color_space.enabled.input_text       = scheme.on_surface;
-        color_space.enabled.caret            = scheme.primary;
-        color_space.enabled.outline          = scheme.outline;
+        theme_container_color = scheme.surface_container;
 
-        color_space.disabled.container = scheme.on_surface;
-        color_space.disabled.container.setAlphaF(0.04);
-        color_space.disabled.label_text = scheme.on_surface;
-        color_space.disabled.label_text.setAlphaF(0.38);
-        color_space.disabled.selected_text = scheme.on_surface;
-        color_space.disabled.selected_text.setAlphaF(0.38);
-        color_space.disabled.leading_icon = scheme.on_surface;
-        color_space.disabled.leading_icon.setAlphaF(0.38);
-        color_space.disabled.supporting_text = scheme.on_surface;
-        color_space.disabled.supporting_text.setAlphaF(0.38);
-        color_space.disabled.input_text = scheme.on_surface;
-        color_space.disabled.input_text.setAlphaF(0.38);
-        color_space.disabled.active_indicator = scheme.on_surface;
-        color_space.disabled.active_indicator.setAlphaF(0.38);
-        color_space.disabled.outline = scheme.outline;
-        color_space.disabled.outline.setAlphaF(0.38);
+        auto shadow = scheme.shadow;
+        shadow.setAlphaF(kShadowOpacity);
+        shadow_effect->setColor(shadow);
 
-        color_space.focused.container        = scheme.surface_container_highest;
-        color_space.focused.label_text       = scheme.primary;
-        color_space.focused.selected_text    = scheme.on_surface;
-        color_space.focused.leading_icon     = scheme.on_surface_variant;
-        color_space.focused.input_text       = scheme.on_surface;
-        color_space.focused.supporting_text  = scheme.on_surface_variant;
-        color_space.focused.active_indicator = scheme.primary;
-        color_space.focused.outline          = scheme.primary;
-
-        color_space.error.container        = scheme.surface_container_highest;
-        color_space.error.active_indicator = scheme.error;
-        color_space.error.label_text       = scheme.error;
-        color_space.error.selected_text    = scheme.on_surface;
-        color_space.error.input_text       = scheme.on_surface;
-        color_space.error.supporting_text  = scheme.error;
-        color_space.error.leading_icon     = scheme.on_surface_variant;
-        color_space.error.caret            = scheme.error;
-        color_space.error.outline          = scheme.error;
-
-        color_space.state_layer = scheme.on_surface;
-        color_space.state_layer.setAlphaF(0.08);
-
-        const auto& color = get_color_tokens();
-        sync_basic_text_style(color.input_text, scheme.surface_container_highest, color.input_text,
-            color_space.state_layer);
+        self.update();
     }
 
-    auto load_theme_manager(ThemeManager& manager) {
+    auto load_theme_manager(ThemeManager& manager) -> void {
         manager.append_handler(&self,
             [this](const ThemeManager& manager) { set_color_scheme(manager.color_scheme()); });
     }
 
-    auto set_label_text(const QString& text) { label_text = text; }
+    auto set_anchor(QWidget* widget) -> void {
+        if (widget == nullptr) return;
 
-    auto set_leading_icon(const QString& code, const QString& font) {
-        leading_icon_code          = code;
-        leading_icon_font          = font;
-        is_update_component_status = false;
+        anchor_widget = widget;
+        self.setParent(widget, self.windowFlags());
+
+        if (self.isVisible()) {
+            // 可见时换锚：迁移事件过滤器并重新定位
+            uninstall_anchor_filters();
+            install_anchor_filters(widget);
+            reposition();
+        } else if (expanded_) {
+            show_menu();
+        }
     }
 
-    auto set_measurements(const Measurements& measurements) -> void {
-        this->measurements = measurements;
-        self.setFixedHeight(measurements.container_height + measurements.standard_font_height);
-        is_update_component_status = false;
+    auto parent_changed() -> void {
+        // Child<T> 等声明式挂载在 prop 求值之后才设置 parent，
+        // 此时补齐因缺少锚点而未能执行的展开
+        if (expanded_ && !self.isVisible()) show_menu();
     }
 
-    auto paint_filled(QPaintEvent*) -> void {
-        const auto widget_rect = self.rect();
-        const auto color       = get_color_tokens();
+    auto anchor() const noexcept -> QWidget* { return anchor_widget; }
 
-        constexpr auto container_radius = 5;
-        update_component_status();
+    auto expanded() const noexcept -> bool { return expanded_; }
+
+    auto set_expanded(bool value) -> void {
+        if (expanded_ == value) return;
+
+        expanded_ = value;
+        if (expanded_) {
+            show_menu();
+        } else {
+            close_programmatically();
+        }
+    }
+
+    auto set_offset(QPoint value) -> void {
+        offset = value;
+        if (self.isVisible()) reposition();
+    }
+
+    auto set_container_color(const QColor& color) -> void {
+        container_color_override = color;
+        self.update();
+    }
+
+    auto set_corner_radius(double value) -> void {
+        corner_radius = value;
+        self.update();
+    }
+
+    auto add_item(QWidget* widget) -> void {
+        content_layout->addWidget(widget);
+        if (expanded_ && !self.isVisible()) show_menu();
+    }
+
+    auto content_count() const noexcept -> int { return content_layout->count(); }
+
+    auto paint_event(QPaintEvent*) -> void {
+        const auto scale_value   = scale->get_value();
+        const auto opacity_value = opacity->get_value();
+        const auto margin        = kShadowMargin * 1.;
+
+        content_opacity_effect->setOpacity(opacity_value);
 
         auto painter = QPainter { &self };
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setOpacity(opacity_value);
 
-        // Draw container with fixed measurements height and vertically centered
-        const auto container_rect = QRect { widget_rect.left(),
-            widget_rect.top() + (widget_rect.height() - measurements.container_height) / 2,
-            widget_rect.width(), measurements.container_height };
-
-        {
-            util::PainterHelper { painter }
-                .set_render_hint(QPainter::Antialiasing)
-                .rounded_rectangle(color.container, Qt::transparent, 0, container_rect,
-                    container_radius, container_radius, 0, 0);
-        }
-
-        // Active indicator at container bottom
-        {
-            const auto p0 = container_rect.bottomLeft();
-            const auto p1 = container_rect.bottomRight();
-            painter.setBrush(Qt::NoBrush);
-            painter.setPen({ color.active_indicator, filled_line_width() });
-            painter.drawLine(p0, p1);
-        }
-
-        // Icon positioned relative to container_rect
-        const auto rect_icon = QRectF {
-            container_rect.right() - self.textMargins().right() - measurements.icon_rect_size * 1.,
-            container_rect.top() + (container_rect.height() - measurements.icon_rect_size) * 0.5,
-            1. * measurements.icon_rect_size,
-            1. * measurements.icon_rect_size,
+        const auto origin = QPointF {
+            transform_origin.x() * self.width(),
+            transform_origin.y() * self.height(),
         };
-        const auto icon_center = rect_icon.center();
-        const bool is_active   = (self.view() && self.view()->isVisible());
+        painter.translate(origin);
+        painter.scale(scale_value, scale_value);
+        painter.translate(-origin);
 
-        painter.save();
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen { color.leading_icon });
-        painter.setFont(leading_icon_font);
-        painter.translate(icon_center);
-        painter.rotate(is_active ? 180.0 : 0.0);
-        painter.translate(-icon_center);
-        painter.drawText(rect_icon, leading_icon_code, { Qt::AlignCenter });
-        painter.restore();
+        util::PainterHelper { painter }
+            .set_render_hint(QPainter::Antialiasing)
+            .rounded_rectangle(effective_container_color(), Qt::transparent, 0,
+                QRectF { margin, margin, self.width() - 2. * margin, self.height() - 2. * margin },
+                corner_radius, corner_radius);
 
-        if (!label_text.isEmpty()) {
-            const auto margins = self.textMargins();
-
-            const auto center_label_y = container_rect.top()
-                + (measurements.container_height - measurements.label_rect_size) / 2.0;
-
-            const auto rect_center = QRectF {
-                QPointF { static_cast<double>(margins.left()), center_label_y },
-                QPointF(container_rect.right() - margins.right(),
-                    center_label_y + measurements.label_rect_size),
-            };
-
-            const auto rect_top = QRectF {
-                QPointF(margins.left(), container_rect.top() + measurements.col_padding),
-                QPointF(container_rect.right() - margins.right(),
-                    container_rect.top() + measurements.col_padding + measurements.label_rect_size),
-            };
-
-            const auto position     = self.currentText().isEmpty() ? *label_position : 1.;
-            const auto label_rect   = animate::interpolate(rect_center, rect_top, position);
-            const auto scale        = 1. - position * 0.25;
-            const auto label_anchor = QPointF { label_rect.left(), label_rect.center().y() };
-
-            painter.save();
-            painter.translate(label_anchor);
-            painter.scale(scale, scale);
-            painter.translate(-label_anchor);
-            painter.setBrush(Qt::NoBrush);
-            painter.setPen(QPen { color.label_text });
-            painter.setFont(standard_text_font);
-            painter.setRenderHint(QPainter::Antialiasing);
-            painter.drawText(label_rect, label_text, { Qt::AlignVCenter | Qt::AlignLeading });
-            painter.restore();
-
-            if (self.currentIndex() != -1) {
-                painter.save();
-                // Place selected text in the input area (below the floating label)
-                const auto input_top =
-                    container_rect.top() + measurements.col_padding + measurements.label_rect_size;
-                const auto input_bottom = container_rect.bottom() - measurements.col_padding;
-                const auto rect_center_selected = QRectF {
-                    QPointF { static_cast<double>(margins.left()), static_cast<double>(input_top) },
-                    QPointF(container_rect.right() - margins.right(),
-                        static_cast<double>(input_bottom)),
-                };
-
-                // Draw selected text with input text color
-                painter.setBrush(Qt::NoBrush);
-                painter.setPen(QPen { color.selected_text });
-                painter.setFont(standard_text_font);
-                painter.setRenderHint(QPainter::Antialiasing);
-                painter.drawText(
-                    rect_center_selected, self.currentText(), Qt::AlignVCenter | Qt::AlignLeading);
-
-                painter.restore();
-            }
-        } else if (label_text.isEmpty() && self.currentIndex() != -1) {
-            const auto margins   = self.textMargins();
-            const auto input_top = container_rect.top()
-                + (container_rect.height() - measurements.input_rect_size) / 2.0;
-            const auto input_bottom  = input_top + measurements.input_rect_size;
-            const auto rect_selected = QRectF {
-                QPointF(margins.left(), input_top),
-                QPointF(container_rect.right() - margins.right(), input_bottom),
-            };
-
-            // Draw selected text
-            painter.save();
-            painter.setBrush(Qt::NoBrush);
-            painter.setPen(QPen { color.selected_text });
-            painter.setFont(standard_text_font);
-            painter.setRenderHint(QPainter::Antialiasing);
-            painter.drawText(
-                rect_selected, self.currentText(), Qt::AlignVCenter | Qt::AlignLeading);
-            painter.restore();
-        }
-
-        if (is_hovered) {
-            util::PainterHelper { painter }
-                .set_render_hint(QPainter::Antialiasing)
-                .rounded_rectangle(color_space.state_layer, Qt::transparent, 0, container_rect,
-                    container_radius, container_radius, 0, 0);
+        if (closing && opacity_value < 0.02) {
+            QTimer::singleShot(0, &self, [this] { self.hide(); });
         }
     }
 
-    auto enter_event(qt::EnterEvent*) {
-        is_hovered = true;
-        self.update();
+    auto hide_event(QHideEvent*) -> void {
+        closing   = false;
+        expanded_ = false;
+
+        uninstall_anchor_filters();
+
+        // 仅用户驱动的关闭（外部点击、Esc）才上报 dismiss_requested
+        if (!programmatic_close) Q_EMIT self.dismiss_requested();
+        programmatic_close = false;
     }
 
-    auto leave_event(QEvent*) {
-        is_hovered = false;
-        self.update();
+    auto event_filter(QObject* watched, QEvent* event) -> bool {
+        if (watched == filter_anchor && event->type() == QEvent::Hide) {
+            programmatic_close = true;
+            self.hide();
+            return false;
+        }
+        if (event->type() == QEvent::Move || event->type() == QEvent::Resize) {
+            reposition();
+        }
+        return false;
     }
 
-    auto focus_in(QFocusEvent*) {
-        is_focused = true;
-        update_label_position();
-        self.update();
+    auto wheel_event(QWheelEvent* event) -> void {
+        scroll_offset = std::clamp(scroll_offset - event->angleDelta().y(), 0, max_scroll_offset());
+        viewport->move(0, -scroll_offset);
     }
 
-    auto focus_out(QFocusEvent*) {
-        is_focused = false;
-        update_label_position();
-        self.update();
-    }
+    auto key_press_event(QKeyEvent* event) -> void {
+        const auto items = collect_items();
+        switch (event->key()) {
+        case Qt::Key_Down:
+            move_highlight(items, +1);
+            break;
 
-    auto show_popup() {
-        if (self.count() == 0) {
+        case Qt::Key_Up:
+            move_highlight(items, -1);
+            break;
+
+        case Qt::Key_Return:
+            [[fallthrough]];
+        case Qt::Key_Enter:
+            [[fallthrough]];
+        case Qt::Key_Space:
+            activate_highlight(items);
+            break;
+
+        case Qt::Key_Escape:
+            close_by_user_request();
+            break;
+
+        default:
             return;
         }
-
-        is_active = true;
-        self.QComboBox::showPopup();
-        update_label_position();
-        self.update();
-    }
-
-    auto hide_popup() -> void {
-        is_active = false;
-        self.QComboBox::hidePopup();
-        update_label_position();
-        self.update();
     }
 
 private:
-    auto update_component_status() -> void {
-        if (is_update_component_status) {
+    auto show_menu() -> void {
+        if (content_layout->count() == 0) return;
+
+        const auto anchor = resolved_anchor();
+        if (anchor == nullptr) {
+            qWarning() << "[DropdownMenu] cannot expand without an anchor widget";
             return;
         }
 
-        auto font = self.font();
-        font.setPixelSize(measurements.standard_font_height);
-        self.setFont(font);
-        standard_text_font = self.font();
-        standard_text_font.setPixelSize(measurements.standard_font_height);
+        install_anchor_filters(anchor);
 
-        is_update_component_status = true;
+        reposition();
+
+        closing            = false;
+        programmatic_close = false;
+        highlight_index    = -1;
+        scroll_offset      = 0;
+        viewport->move(0, 0);
+
+        scale->snap_to(0.8);
+        opacity->snap_to(0.0);
+
+        self.show();
+
+        scale->transition_to(1.0);
+        opacity->transition_to(1.0);
     }
 
-    auto update_label_position() -> void {
-        if ((is_focused || is_active) && self.currentIndex() != -1) {
-            label_position->transition_to(1.0);
-        } else if (is_focused || is_active) {
-            label_position->transition_to(1.0);
-        } else {
-            label_position->transition_to(0.0);
+    /// 程序性关闭：应用通过 set_expanded(false) 发起，不 emit dismiss_requested
+    auto close_programmatically() -> void {
+        if (!self.isVisible() || closing) return;
+
+        programmatic_close = true;
+        start_close_animation();
+    }
+
+    /// 用户请求关闭：Esc 等路径，hide 后 emit dismiss_requested
+    auto close_by_user_request() -> void {
+        if (!self.isVisible() || closing) return;
+
+        programmatic_close = false;
+        start_close_animation();
+    }
+
+    auto start_close_animation() -> void {
+        closing = true;
+        scale->transition_to(0.8);
+        opacity->transition_to(0.0);
+    }
+
+    auto install_anchor_filters(QWidget* anchor) -> void {
+        filter_anchor = anchor;
+        anchor->installEventFilter(&self);
+        if (anchor->window() != anchor) {
+            anchor->window()->installEventFilter(&self);
         }
     }
 
-    auto sync_basic_text_style(const QColor& text, const QColor& background,
-        const QColor& selection_text, const QColor& selection_background) -> void {
+    auto uninstall_anchor_filters() -> void {
+        if (filter_anchor == nullptr) return;
 
-        constexpr auto to_rgba = [](const QColor& color) {
-            return QStringLiteral("rgba(%1, %2, %3, %4)")
-                .arg(color.red())
-                .arg(color.green())
-                .arg(color.blue())
-                .arg(color.alpha());
+        filter_anchor->removeEventFilter(&self);
+        if (filter_anchor->window() != nullptr && filter_anchor->window() != filter_anchor) {
+            filter_anchor->window()->removeEventFilter(&self);
+        }
+        filter_anchor = nullptr;
+    }
+
+    auto resolved_anchor() const noexcept -> QWidget* {
+        return anchor_widget != nullptr ? anchor_widget : self.parentWidget();
+    }
+
+    auto effective_container_color() const noexcept -> QColor {
+        return container_color_override.isValid() ? container_color_override
+                                                  : theme_container_color;
+    }
+
+    auto collect_items() const -> QList<MenuItemDetails*> {
+        auto result = QList<MenuItemDetails*> { };
+        for (auto i = 0; i < content_layout->count(); ++i) {
+            if (const auto item =
+                    qobject_cast<MenuItemDetails*>(content_layout->itemAt(i)->widget())) {
+                result.append(item);
+            }
+        }
+        return result;
+    }
+
+    auto move_highlight(const QList<MenuItemDetails*>& items, int step) -> void {
+        if (items.isEmpty()) return;
+
+        const auto next = highlight_index < 0
+            ? (step > 0 ? 0 : static_cast<int>(items.size()) - 1)
+            : std::clamp(highlight_index + step, 0, static_cast<int>(items.size()) - 1);
+        if (next == highlight_index) return;
+
+        if (highlight_index >= 0 && highlight_index < items.size()) {
+            auto leave = QEvent { QEvent::Leave };
+            QCoreApplication::sendEvent(items.at(highlight_index), &leave);
+        }
+
+        highlight_index = next;
+
+        const auto item   = items.at(highlight_index);
+        const auto center = QPointF { item->rect().center() };
+        auto enter        = QEnterEvent { center, center, item->mapToGlobal(center.toPoint()) };
+        QCoreApplication::sendEvent(item, &enter);
+
+        ensure_visible(item);
+    }
+
+    auto activate_highlight(const QList<MenuItemDetails*>& items) -> void {
+        if (highlight_index < 0 || highlight_index >= items.size()) return;
+
+        const auto item   = items.at(highlight_index);
+        const auto center = QPointF { item->rect().center() };
+        const auto global = item->mapToGlobal(center.toPoint());
+
+        auto press = QMouseEvent { QEvent::MouseButtonPress, center, global, Qt::LeftButton,
+            Qt::LeftButton, Qt::NoModifier };
+        QCoreApplication::sendEvent(item, &press);
+
+        auto release = QMouseEvent { QEvent::MouseButtonRelease, center, global, Qt::LeftButton,
+            Qt::NoButton, Qt::NoModifier };
+        QCoreApplication::sendEvent(item, &release);
+    }
+
+    auto ensure_visible(QWidget* item) -> void {
+        const auto top     = item->geometry().top();
+        const auto bottom  = item->geometry().bottom() + 1;
+        const auto visible = container->height();
+
+        if (top < scroll_offset) scroll_offset = top;
+        if (bottom > scroll_offset + visible) scroll_offset = bottom - visible;
+
+        scroll_offset = std::clamp(scroll_offset, 0, max_scroll_offset());
+        viewport->move(0, -scroll_offset);
+    }
+
+    auto reposition() -> void {
+        const auto anchor = resolved_anchor();
+        if (anchor == nullptr) return;
+
+        const auto anchor_rect = QRect { anchor->mapToGlobal(QPoint { 0, 0 }), anchor->size() };
+        const auto screen_rect = anchor->screen()->availableGeometry();
+
+        const auto content_size = content_layout->sizeHint();
+        const auto menu_size    = QSize {
+            std::min(std::clamp(content_size.width(), kMinMenuWidth, kMaxMenuWidth),
+                screen_rect.width() - 2 * kWindowHMargin),
+            std::min(content_size.height(), available_height(anchor_rect, screen_rect)),
+        };
+        const auto window_size = QSize {
+            menu_size.width() + 2 * kShadowMargin,
+            menu_size.height() + 2 * kShadowMargin,
+        };
+        auto position = QPoint { };
+        {
+            const auto x_candidates = std::array {
+                anchor_rect.left(),
+                anchor_rect.right() - menu_size.width() + 1,
+                anchor_rect.center().x() < screen_rect.center().x()
+                    ? screen_rect.left() + kWindowHMargin
+                    : screen_rect.right() - kWindowHMargin - menu_size.width() + 1,
+            };
+            for (const auto x : x_candidates) {
+                position.setX(
+                    std::clamp(x, screen_rect.left(), screen_rect.right() - menu_size.width() + 1));
+                if (x == position.x()) break;
+            }
+
+            const auto below = anchor_rect.bottom() + 1;
+            const auto above = anchor_rect.top() - menu_size.height();
+            if (below + menu_size.height() <= screen_rect.bottom() + 1) {
+                position.setY(below);
+            } else if (above >= screen_rect.top()) {
+                position.setY(above);
+            } else {
+                const auto lo = screen_rect.top() + kWindowVMargin;
+                const auto hi = screen_rect.bottom() - kWindowVMargin - menu_size.height() + 1;
+                position.setY(std::clamp(
+                    anchor_rect.center().y() < screen_rect.center().y() ? lo : hi, lo, hi));
+            }
+        }
+
+        // 叠加用户偏移，RTL 布局下 x 方向取反
+        position += QPoint {
+            self.layoutDirection() == Qt::RightToLeft ? -offset.x() : offset.x(),
+            offset.y(),
         };
 
-        constexpr auto kQComboBoxStyle = R"(
-            QComboBox {
-                border: none;
-                border-radius: 5px;
-                selection-color: %3;
-                selection-background-color: %4;
-            }
-            QComboBox QAbstractItemView {
-                border: none;
-                border-radius: 3px;
-                padding-top: 8px;
-                padding-bottom: 8px;
-                color: %1;
-                background-color: %2;
-            }
-        )";
+        const auto window_position = position - QPoint { kShadowMargin, kShadowMargin };
 
-        self.setStyleSheet(QString { kQComboBoxStyle }
-                .arg(to_rgba(text))
-                .arg(to_rgba(background))
-                .arg(to_rgba(selection_text))
-                .arg(to_rgba(selection_background)));
+        {
+            const auto menu_rect   = QRect { position, menu_size };
+            const auto window_rect = QRect { window_position, window_size };
+            const auto pivot = [](int menu_min, int menu_max, int anchor_min, int anchor_max) {
+                if (menu_min >= anchor_max) return 0.0;
+                if (menu_max <= anchor_min) return 1.0;
+                if (menu_max == menu_min) return 0.0;
+                const auto center =
+                    (std::max(menu_min, anchor_min) + std::min(menu_max, anchor_max)) / 2.0;
+                return (center - menu_min) / (menu_max - menu_min);
+            };
+            const auto pivot_x = pivot(menu_rect.left(), menu_rect.right() + 1, anchor_rect.left(),
+                anchor_rect.right() + 1);
+            const auto pivot_y = pivot(menu_rect.top(), menu_rect.bottom() + 1, anchor_rect.top(),
+                anchor_rect.bottom() + 1);
+            transform_origin   = QPointF {
+                (pivot_x * menu_size.width() + kShadowMargin) / window_size.width(),
+                (pivot_y * menu_size.height() + kShadowMargin) / window_size.height(),
+            };
+        }
+
+        self.setFixedSize(window_size);
+        self.move(window_position);
+
+        container->setGeometry(kShadowMargin, kShadowMargin, menu_size.width(), menu_size.height());
+        viewport->resize(menu_size.width(), content_height());
+        scroll_offset = std::clamp(scroll_offset, 0, max_scroll_offset());
+        viewport->move(0, -scroll_offset);
     }
 
-    auto get_color_tokens() const -> ColorSpace::Tokens const& {
-        return is_disable ? color_space.disabled
-            : is_error    ? color_space.error
-            : is_active   ? color_space.focused
-            : is_focused  ? color_space.focused
-                          : color_space.enabled;
+    auto content_height() const noexcept -> int { return content_layout->sizeHint().height(); }
+
+    auto max_scroll_offset() const noexcept -> int {
+        return std::max(0, content_height() - container->height());
     }
 
-    auto filled_line_width() const -> double { return 1.5; }
-
-    static constexpr auto measure_text(
-        const QFont& font, const QString& text, const QTextOption& options) {
-        const auto fm   = QFontMetricsF(font);
-        const auto size = fm.size(Qt::TextSingleLine, text);
-        return size.width();
+    auto available_height(const QRect& anchor_rect, const QRect& screen_rect) const noexcept
+        -> int {
+        const auto above = anchor_rect.top() - screen_rect.top() - kWindowVMargin;
+        const auto below = screen_rect.bottom() - kWindowVMargin - anchor_rect.bottom();
+        return std::max({ 0, above, below });
     }
-
-private:
-    Measurements measurements;
-    ColorSpace color_space;
-
-    bool is_disable = false;
-    bool is_hovered = false;
-    bool is_focused = false;
-    bool is_error   = false;
-    bool is_active  = false;
-
-    bool is_update_component_status = false;
-
-    QString label_text;
-    QIcon leading_icon;
-    QString leading_icon_code = material::icon::kArrowDropDown;
-    QFont leading_icon_font   = material::round::font_1;
-
-    QFont standard_text_font;
-
-    Animatable animatable;
-    std::unique_ptr<TransitionValue<PidState<double>>> label_position;
-
-    DropdownMenu& self;
 };

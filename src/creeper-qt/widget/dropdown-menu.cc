@@ -1,61 +1,55 @@
 #include "dropdown-menu.impl.hh"
 
 DropdownMenu::DropdownMenu()
-    : pimpl { std::make_unique<Impl>(*this) } { }
+    : QWidget(nullptr, Qt::Popup | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
+    , pimpl { std::make_unique<Impl>(*this) } { }
 
 DropdownMenu::~DropdownMenu() = default;
 
-void DropdownMenu::set_color_scheme(const ColorScheme& scheme) { pimpl->set_color_scheme(scheme); }
-
-void DropdownMenu::load_theme_manager(ThemeManager& manager) { pimpl->load_theme_manager(manager); }
-
-void DropdownMenu::set_label_text(const QString& text) { pimpl->set_label_text(text); }
-
-void DropdownMenu::set_leading_icon(const QIcon&) { }
-
-void DropdownMenu::set_leading_icon(const QString& code, const QString& font) {
-    pimpl->set_leading_icon(code, font);
+auto DropdownMenu::set_color_scheme(const ColorScheme& scheme) -> void {
+    pimpl->set_color_scheme(scheme);
 }
 
-void DropdownMenu::resizeEvent(QResizeEvent* event) { QComboBox::resizeEvent(event); }
-
-void DropdownMenu::enterEvent(qt::EnterEvent* enter_event) {
-    pimpl->enter_event(enter_event);
-    QComboBox::enterEvent(enter_event);
+auto DropdownMenu::load_theme_manager(ThemeManager& manager) -> void {
+    pimpl->load_theme_manager(manager);
 }
 
-void DropdownMenu::leaveEvent(QEvent* event) {
-    pimpl->leave_event(event);
-    QComboBox::leaveEvent(event);
+auto DropdownMenu::set_anchor(QWidget* widget) -> void { pimpl->set_anchor(widget); }
+
+auto DropdownMenu::anchor() const noexcept -> QWidget* { return pimpl->anchor(); }
+
+auto DropdownMenu::set_expanded(bool expanded) -> void { pimpl->set_expanded(expanded); }
+
+auto DropdownMenu::expanded() const noexcept -> bool { return pimpl->expanded(); }
+
+auto DropdownMenu::set_offset(QPoint offset) -> void { pimpl->set_offset(offset); }
+
+auto DropdownMenu::set_container_color(const QColor& color) -> void {
+    pimpl->set_container_color(color);
 }
 
-void DropdownMenu::focusInEvent(QFocusEvent* focus_event) {
-    pimpl->focus_in(focus_event);
-    QComboBox::focusInEvent(focus_event);
+auto DropdownMenu::set_corner_radius(double radius) -> void { pimpl->set_corner_radius(radius); }
+
+auto DropdownMenu::add_item(QWidget* widget) -> void { pimpl->add_item(widget); }
+
+auto DropdownMenu::content_count() const noexcept -> int { return pimpl->content_count(); }
+
+auto DropdownMenu::paintEvent(QPaintEvent* event) -> void { pimpl->paint_event(event); }
+
+auto DropdownMenu::event(QEvent* event) -> bool {
+    if (event->type() == QEvent::ParentChange) pimpl->parent_changed();
+    return QWidget::event(event);
 }
 
-void DropdownMenu::focusOutEvent(QFocusEvent* event) {
-    pimpl->focus_out(event);
-    QComboBox::focusOutEvent(event);
+auto DropdownMenu::hideEvent(QHideEvent* event) -> void {
+    pimpl->hide_event(event);
+    QWidget::hideEvent(event);
 }
 
-void DropdownMenu::changeEvent(QEvent* event) { QComboBox::changeEvent(event); }
-
-void DropdownMenu::showPopup() { pimpl->show_popup(); }
-
-void DropdownMenu::hidePopup() { pimpl->hide_popup(); }
-
-auto DropdownMenu::set_measurements(const Measurements& measurements) noexcept -> void {
-    pimpl->set_measurements(measurements);
+auto DropdownMenu::eventFilter(QObject* watched, QEvent* event) -> bool {
+    return pimpl->event_filter(watched, event);
 }
 
-void DropdownMenu::setTextMargins(const QMargins& margins) { this->margins = margins; }
+auto DropdownMenu::wheelEvent(QWheelEvent* event) -> void { pimpl->wheel_event(event); }
 
-QMargins DropdownMenu::textMargins() const { return margins; }
-
-using namespace creeper;
-
-void FilledDropdownMenu::paintEvent(QPaintEvent* event) {
-    pimpl->paint_filled(event);
-    // QComboBox::paintEvent(event);
-}
+auto DropdownMenu::keyPressEvent(QKeyEvent* event) -> void { pimpl->key_press_event(event); }
