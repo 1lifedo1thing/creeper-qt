@@ -1,15 +1,17 @@
 #pragma once
 
+#include "creeper-qt/utility/api/scope/common.hh" // IWYU pragma: keep
+#include "creeper-qt/utility/api/scope/shape.hh"  // IWYU pragma: keep
+#include "creeper-qt/utility/api/scope/widget.hh" // IWYU pragma: keep
 #include "creeper-qt/utility/solution/round-angle.hh"
-#include "creeper-qt/utility/wrapper/common.hh"
 #include "creeper-qt/utility/wrapper/dsl.hh"
 #include "creeper-qt/utility/wrapper/forward_prop.hh"
-#include "creeper-qt/utility/wrapper/widget.hh"
 #include "creeper-qt/widget/shape/shape.hh"
+
+#include <qpainterpath.h>
 
 #include <cmath>
 #include <numbers>
-#include <qpainterpath.h>
 #include <ranges>
 
 namespace creeper {
@@ -46,10 +48,10 @@ protected:
         painter.setOpacity(1);
         painter.setBrush({ background_ });
         painter.setPen(QPen {
-            border_color_,
-            border_width_,
-            Qt::SolidLine,
-            Qt::RoundCap,
+          border_color_,
+          border_width_,
+          Qt::SolidLine,
+          Qt::RoundCap,
         });
         painter.drawPath(path_cache_);
     }
@@ -101,18 +103,14 @@ private:
 };
 
 namespace wave_circle::pro {
-
-    using namespace common::pro;
-    using namespace widget::pro;
-
-    using FlangeNumber = ForwardProp<&WaveCircle::setFlangeNumber>;
-
-    using FlangeRadius = ForwardProp<&WaveCircle::setFlangeRadius>;
-
-    using OverallRadius = ForwardProp<&WaveCircle::setOverallRadius>;
-
+    using FlangeNumber    = ForwardProp<&WaveCircle::setFlangeNumber>;
+    using FlangeRadius    = ForwardProp<&WaveCircle::setFlangeRadius>;
+    using OverallRadius   = ForwardProp<&WaveCircle::setOverallRadius>;
     using ProtrudingRatio = ForwardProp<&WaveCircle::setProtrudingRatio>;
 
+    using namespace api::scope::common;
+    using namespace api::scope::shape;
+    using namespace api::scope::widget;
 }
 
 }

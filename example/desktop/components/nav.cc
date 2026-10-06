@@ -1,5 +1,3 @@
-#include "component.hh"
-
 #include <creeper-qt/core/application.hh>
 #include <creeper-qt/layout/group.hh>
 #include <creeper-qt/layout/linear.hh>
@@ -9,6 +7,8 @@
 #include <creeper-qt/widget/buttons/icon-button.hh>
 #include <creeper-qt/widget/cards/filled-card.hh>
 #include <creeper-qt/widget/image.hh>
+
+#include "component.hh"
 
 using namespace creeper;
 namespace fc = filled_card::pro;
@@ -25,8 +25,8 @@ auto NavComponent(NavComponentState& state) noexcept -> raw_pointer<QWidget> {
         im::ContentScale { ContentScale::CROP },
         im::BorderWidth { 3 },
         im::PainterResource {
-            "https://r2.creeper5820.com/creeper-qt/ohtoai.png",
-            [] { qDebug() << "[main] Image loading completed"; },
+          "https://r2.creeper5820.com/creeper-qt/ohtoai.png",
+          [] { qDebug() << "[main] Image loading completed"; },
         },
     };
     state.manager.appendHandler(AvatarComponent, [AvatarComponent](const ThemeManager& manager) {
@@ -36,81 +36,74 @@ auto NavComponent(NavComponentState& state) noexcept -> raw_pointer<QWidget> {
     });
 
     const auto navigation_icons_config = std::tuple {
-        ic::ThemeManager { state.manager },
+        ic::BindTheme { state.manager },
         ic::ColorStandard,
         ic::ShapeRound,
         ic::TypesToggleUnselected,
         ic::WidthDefault,
-        widget::pro::Font(material::round::font_1),
-        widget::pro::FixedSize(IconButton::kSmallContainerSize),
+        ic::Font(material::round::font_1),
+        ic::FixedSize(IconButton::kSmallContainerSize),
     };
 
     return new FilledCard {
-        fc::ThemeManager { state.manager },
+        state.manager,
         fc::Radius { 0 },
         fc::Level { CardLevel::HIGHEST },
 
-        fc::Layout<Col> {
-            ln::Spacing { 10 },
-            ln::Margin { 15 },
+        new Col {
+          ln::Spacing { 10 },
+          ln::Margin { 15 },
 
-            ln::Item {
-                { 0, Qt::AlignHCenter },
-                AvatarComponent,
-            },
-            ln::SpacingItem { 20 },
-            ln::Item<SelectGroup<Col, IconButton>> {
-                { 0, Qt::AlignHCenter },
-                ln::Margin { 0 },
-                ln::SpacingItem { 10 },
-                sg::Compose {
-                    state.buttons_context | std::views::enumerate,
-                    [&](int index, const auto& context) {
-                        const auto& [name, icon] = context;
+          AvatarComponent + Col::Placement { 0, Qt::AlignHCenter },
+          ln::SpacingItem { 20 },
+          new SelectGroup<Col, IconButton> {
+            ln::Margin { 0 },
+            ln::SpacingItem { 10 },
+            sg::Compose {
+              state.buttons_context | std::views::enumerate,
+              [&](int index, const auto& context) {
+                  const auto& [name, icon] = context;
 
-                        const auto status = (index == 0) //
-                            ? ic::TypesToggleSelected
-                            : ic::TypesToggleUnselected;
+                  const auto status = (index == 0) //
+                      ? ic::TypesToggleSelected
+                      : ic::TypesToggleUnselected;
 
-                        return new IconButton {
-                            navigation_icons_config,
-                            status,
-                            ic::ColorFilled,
-                            ic::FontIcon { QString::fromUtf8(icon.data(), icon.size()) },
-                            ic::Clickable { [=] { state.switch_callback(index, name); } },
-                        };
-                    },
-                    Qt::AlignHCenter,
-                },
-                sg::SignalInjection { &IconButton::clicked },
+                  return new IconButton {
+                      navigation_icons_config,
+                      status,
+                      ic::ColorFilled,
+                      ic::FontIcon { QString::fromUtf8(icon.data(), icon.size()) },
+                      ic::Clickable { [=] { state.switch_callback(index, name); } },
+                  };
+              },
+              Qt::AlignHCenter,
             },
-            ln::SpacingItem { 40 },
-            ln::Stretch { 255 },
-            ln::Item<IconButton> {
-                { 0, Qt::AlignHCenter },
-                navigation_icons_config,
-                ic::TypesDefault,
-                ic::FontIcon { "tab" },
-                ic::Clickable { state.next_tab },
-            },
-            ln::Item<IconButton> {
-                { 0, Qt::AlignHCenter },
-                navigation_icons_config,
-                ic::TypesDefault,
-                ic::FontIcon { material::icon::kLogout },
-                ic::Clickable { &app::quit },
-            },
-            ln::Item<IconButton> {
-                { 0, Qt::AlignHCenter },
-                navigation_icons_config,
-                ic::ColorFilled,
-                ic::FontIcon { material::icon::kDarkMode },
-                ic::Clickable { [&](IconButton& self) {
-                    std::ignore = self.selected();
-                    state.manager.toggleColorMode();
-                    state.manager.applyTheme();
-                } },
-            },
+            sg::SignalInjection { &IconButton::clicked },
+          } + Col::Placement { 0, Qt::AlignHCenter },
+          ln::SpacingItem { 40 },
+          ln::Stretch { 255 },
+          new IconButton {
+            navigation_icons_config,
+            ic::TypesDefault,
+            ic::FontIcon { "tab" },
+            ic::Clickable { state.next_tab },
+          } + Col::Placement { 0, Qt::AlignHCenter },
+          new IconButton {
+            navigation_icons_config,
+            ic::TypesDefault,
+            ic::FontIcon { material::icon::kLogout },
+            ic::Clickable { &app::quit },
+          } + Col::Placement { 0, Qt::AlignHCenter },
+          new IconButton {
+            navigation_icons_config,
+            ic::ColorFilled,
+            ic::FontIcon { material::icon::kDarkMode },
+            ic::Clickable { [&](IconButton& self) {
+                std::ignore = self.selected();
+                state.manager.toggleColorMode();
+                state.manager.applyTheme();
+            } },
+          } + Col::Placement { 0, Qt::AlignHCenter },
         },
     };
 }

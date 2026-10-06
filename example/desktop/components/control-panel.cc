@@ -20,27 +20,27 @@ FilledCard* ControlPanel(ThemeManager& manager) noexcept {
     auto pContext = std::make_shared<Context>();
 
     return new FilledCard {
-        fcp::ThemeManager { manager },
+        manager,
 
-        fcp::Layout<Row> {
-            rp::Spacing { 5 },
-            rp::Alignment { Qt::AlignVCenter | Qt::AlignLeft },
+        new Row {
+          rp::Spacing { 5 },
+          rp::Alignment { Qt::AlignVCenter | Qt::AlignLeft },
 
-            rp::Item<Col> {
-                Util::ForEach(
-                    std::array {
-                        "按钮一",
-                        "按钮二",
-                        "按钮三",
-                    },
-                    [&](std::size_t index, std::string_view text) {
-                        return cp::Item<OutlinedButton> {
-                            obp::ThemeManager { manager },
-                            obp::FixedSize { 80, 30 },
-                            obp::Text { text.data() },
-                        };
-                    }),
-            },
+          new Col {
+            Util::ForEach(
+                std::array {
+                  "按钮一",
+                  "按钮二",
+                  "按钮三",
+                },
+                [&](std::size_t index, std::string_view text) {
+                    return new OutlinedButton {
+                        manager,
+                        obp::FixedSize { 80, 30 },
+                        obp::Text { text.data() },
+                    };
+                }),
+          },
         },
     };
 }

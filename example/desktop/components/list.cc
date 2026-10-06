@@ -1,5 +1,3 @@
-#include "component.hh"
-
 #include <creeper-qt/core/application.hh>
 #include <creeper-qt/layout/group.hh>
 #include <creeper-qt/layout/linear.hh>
@@ -9,7 +7,10 @@
 #include <creeper-qt/widget/cards/filled-card.hh>
 
 #include <qdebug.h>
+
 #include <ranges>
+
+#include "component.hh"
 
 using namespace creeper;
 namespace lnpro = linear::pro;
@@ -26,35 +27,35 @@ auto ListComponent(ListComponentState& state) noexcept -> raw_pointer<QWidget> {
     const auto ButtonGroup = new Group<Col, TextButton> {
         lnpro::Alignment { Qt::AlignTop | Qt::AlignHCenter },
         grpro::Compose {
-            list_items | std::views::enumerate,
-            [&](auto&& i, auto&& c) {
-                return new TextButton {
-                    tbpro::ThemeManager { state.manager },
-                    tbpro::FixedWidth { 120 },
-                    tbpro::FixedHeight { 30 },
-                    tbpro::Radius { -1 },
-                    tbpro::Text { std::format("{}.{}", i, c) },
-                    tbpro::Font { "JetBrains Mono" },
-                    tbpro::Clickable {
-                        [c](TextButton& button) { qDebug() << "[main] Clicked" << c; },
-                    },
-                };
-            },
-            Qt::AlignTop | Qt::AlignHCenter,
+          list_items | std::views::enumerate,
+          [&](auto&& i, auto&& c) {
+              return new TextButton {
+                  state.manager,
+                  tbpro::FixedWidth { 120 },
+                  tbpro::FixedHeight { 30 },
+                  tbpro::Radius { -1 },
+                  tbpro::Text { std::format("{}.{}", i, c) },
+                  tbpro::Font { "JetBrains Mono" },
+                  tbpro::Clickable {
+                    [c](TextButton& button) { qDebug() << "[main] Clicked" << c; },
+                  },
+              };
+          },
+          Qt::AlignTop | Qt::AlignHCenter,
         },
     };
     return new FilledCard {
-        fcpro::ThemeManager { state.manager },
+        state.manager,
         fcpro::Radius { 10 },
-        fcpro::Layout<Col> {
-            lnpro::Item<ScrollArea> {
-                scroll::pro::ThemeManager { state.manager },
-                scroll::pro::ScrollBarPolicy {
-                    Qt::ScrollBarAlwaysOff,
-                    Qt::ScrollBarAlwaysOff,
-                },
-                scroll::pro::Item { ButtonGroup },
+        new Col {
+          new ScrollArea {
+            state.manager,
+            scroll::pro::ScrollBarPolicy {
+              Qt::ScrollBarAlwaysOff,
+              Qt::ScrollBarAlwaysOff,
             },
+            scroll::pro::ScrollItem { ButtonGroup },
+          },
         },
     };
 };

@@ -5,22 +5,26 @@
 ///     如果使用 Arch Linux，则可以通过 AUR 安装：ttf-material-icons-git，
 ///     使用其他 Nerd Font 也是可以的
 
+#include <creeper-qt/creeper-qt.hh>
+
+#include <QtWidgets>
+
 #include "components/component.hh"
 #include "components/display-board.hh"
 
-#include <QtWidgets>
-#include <creeper-qt/creeper-qt.hh>
-
 using namespace creeper;
 
-namespace lnpro = linear::pro;
-namespace mwpro = main_window::pro;
-namespace capro = card::pro;
-namespace stpro = stacked::pro;
+using namespace linear::pro;
+using namespace main_window::pro;
+using namespace card::pro;
+using namespace stacked::pro;
+using namespace scroll::pro;
+using namespace mixer::pro;
+using namespace app::pro;
 
 auto main(int argc, char** argv) -> int {
     app::init {
-        app::pro::Complete { argc, argv },
+        Complete { argc, argv },
     };
 
     auto final_index = std::uint8_t { 1 };
@@ -41,15 +45,15 @@ auto main(int argc, char** argv) -> int {
         .switch_callback = [&](int index, const auto& name) {
             qDebug() << "[nav] Switch to <" << name.data() << ">";
 
-            constexpr auto packs = std::array{
+            constexpr auto kPacks = std::array{
                 kBlueMikuThemePack,
                 kGreenThemePack,
                 kGoldenHarvestThemePack,
             };
             try {
-                manager.setThemePack(packs.at(index));
+                manager.setThemePack(kPacks.at(index));
             } catch (const std::out_of_range& e) {
-                manager.setThemePack(packs[0]);
+                manager.setThemePack(kPacks[0]);
                 qDebug() << "[nav] Fallback to kBlueMikuThemePack";
             }
             manager.applyTheme();
@@ -78,8 +82,8 @@ auto main(int argc, char** argv) -> int {
 
             // C 键居中
             auto shortcut_c = new QShortcut { Qt::Key_C, &window };
-            QObject::connect(shortcut_c, &QShortcut::activated,
-                [&window] { window.use(mwpro::MoveCenter { }); });
+            QObject::connect(
+                shortcut_c, &QShortcut::activated, [&window] { window.use(MoveCenter { }); });
 
             // S 键保存截图
             auto shortcut_s = new QShortcut { Qt::Key_S, &window };
@@ -90,7 +94,7 @@ auto main(int argc, char** argv) -> int {
 
                 const auto filename =
                     QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
-                    + window.tr("/main-window-screenshot-%1.png").arg(stamp);
+                    + QWidget::tr("/main-window-screenshot-%1.png").arg(stamp);
 
                 if (pixmap.save(filename)) {
                     qDebug() << "截图已保存至:" << filename;
@@ -99,53 +103,50 @@ auto main(int argc, char** argv) -> int {
                 }
             });
         },
-        mwpro::MinimumSize { 1080, 720 },
-        mwpro::Central<FilledCard> {
-            capro::ThemeManager { manager },
-            capro::Radius { 0 },
-            capro::Level { CardLevel::HIGHEST },
+        MinimumSize { 1080, 720 },
+        Central<FilledCard> {
+          manager,
+          Radius { 0 },
+          Level { CardLevel::HIGHEST },
 
-            capro::Layout<Row> {
-                lnpro::Margin { 0 },
-                lnpro::Spacing { 0 },
+          new Row {
+            Margin { 0 },
+            Spacing { 0 },
 
-                lnpro::Item {
-                    NavComponent(nav_component_state),
-                },
-                lnpro::Item<Col> {
-                    lnpro::ContentsMargin { 15, 15, 5, 15 },
-                    lnpro::Item { ListComponent(list_component_state) },
-                },
-                lnpro::Item<Stacked> {
-                    { 1 },
-                    MutableForward {
-                        stpro::CurrentIndex { },
-                        stack_index,
-                    },
-                    stpro::Item<Widget> {
-                        capro::Layout<Col> {
-                            lnpro::ContentsMargin { 5, 15, 15, 15 },
-                            lnpro::Item<ScrollArea> {
-                                scroll::pro::ThemeManager { manager },
-                                scroll::pro::HorizontalScrollBarPolicy {
-                                    Qt::ScrollBarAlwaysOff,
-                                },
-                                scroll::pro::Item {
-                                    ViewComponent(view_component_state),
-                                },
-                            },
-                        },
-                    },
-                    stpro::Item<Widget> {
-                        capro::Layout<Col> {
-                            lnpro::ContentsMargin { { 5, 15, 15, 15 } },
-                            lnpro::Item<DisplayBoard> { manager },
-                        },
-                    },
-                },
+            NavComponent(nav_component_state),
+            new Col {
+              ContentsMargin { 15, 15, 5, 15 },
+              ListComponent(list_component_state),
             },
+            new Stacked {
+              MutableForward {
+                CurrentIndex { },
+                stack_index,
+              },
+              new Widget {
+                new Col {
+                  ContentsMargin { 5, 15, 15, 15 },
+                  new ScrollArea {
+                    manager,
+                    HorizontalScrollBarPolicy {
+                      Qt::ScrollBarAlwaysOff,
+                    },
+                    ScrollItem {
+                      ViewComponent(view_component_state),
+                    },
+                  },
+                },
+              },
+              new Widget {
+                new Col {
+                  ContentsMargin { { 5, 15, 15, 15 } },
+                  new DisplayBoard { manager },
+                },
+              },
+            } + Row::Placement { 1 },
+          },
         },
-        mixer::pro::SetMixerMask { mask_window },
+        SetMixerMask { mask_window },
     };
 
     manager.applyTheme();

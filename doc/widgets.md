@@ -6,7 +6,7 @@
 
 ## 通用组件属性
 
-命名空间：`creeper::widget::pro`
+命名空间：`creeper::api::scope::widget`
 
 | 属性 | 类型 | 方法 |
 | --- | --- | --- |
@@ -22,7 +22,7 @@
 ### 声明式配置（推荐）
 
 ```cpp
-namespace pro = creeper::widget::pro;
+namespace pro = creeper::api::scope::widget;
 using creeper::Widget;
 
 auto widget = new Widget {
@@ -34,7 +34,7 @@ auto widget = new Widget {
 ### 等价的传统写法
 
 ```cpp
-auto qwidget = new QWidget {};
+auto qwidget = new QWidget { };
 qwidget->setMaximumSize(200, 100);
 qwidget->setMinimumSize(100, 050);
 ```
@@ -42,7 +42,7 @@ qwidget->setMinimumSize(100, 050);
 ### 属性复用
 
 ```cpp
-namespace pro = creeper::widget::pro;
+namespace pro = creeper::api::scope::widget;
 using creeper::Widget;
 
 const auto props = std::tuple {
@@ -91,7 +91,7 @@ auto widget_b = new Widget {
 
 命名空间：`creeper::filled_button::pro`
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`、`creeper::button::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::button::pro`
 
 ```cpp
 using namespace creeper;
@@ -100,9 +100,7 @@ auto button = new FilledButton {
     button::pro::Text { "提交" },
     button::pro::Radius { 8.0 },
     button::pro::Background { QColor("#2196F3") },
-    button::pro::Clickable { [](auto& self) {
-        qDebug() << "按钮被点击";
-    }}
+    button::pro::Clickable { [](auto& self) { qDebug() << "按钮被点击"; } },
 };
 ```
 
@@ -114,7 +112,7 @@ auto button = new FilledButton {
 
 与 `FilledButton` 相同的 API，仅配色方案不同。
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`、`creeper::button::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::button::pro`
 
 ---
 
@@ -124,7 +122,7 @@ auto button = new FilledButton {
 
 与 `FilledButton` 相同的 API，仅配色方案不同。
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`、`creeper::button::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::button::pro`
 
 ---
 
@@ -134,7 +132,7 @@ auto button = new FilledButton {
 
 与 `FilledButton` 相同的 API，仅配色方案不同。
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`、`creeper::button::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::button::pro`
 
 ---
 
@@ -148,7 +146,7 @@ namespace obp = creeper::outlined_button::pro;
 
 // 通用属性可以直接使用，无需区分来源
 const auto properties = std::tuple {
-    fbp::ThemeManager { theme_manager },
+    theme_manager,
     fbp::FixedSize { 100, 50 },
     fbp::Font { "JetBrains Mono", 12 },
     fbp::Text { "你好世界" },
@@ -164,16 +162,16 @@ namespace obp = creeper::outlined_button::pro;
 namespace tbp = creeper::text_button::pro;
 
 const auto properties = std::tuple {
-    fbp::ThemeManager { theme_manager },
+    theme_manager,
     fbp::FixedSize { 100, 50 },
     fbp::Font { "JetBrains Mono", 12 },
     fbp::Text { "你好世界" },
     fbp::Radius { 25 },
 };
 
-auto filled_button = FilledButton { properties };
+auto filled_button   = FilledButton { properties };
 auto outlined_button = OutlinedButton { properties };
-auto text_button = TextButton { properties };
+auto text_button     = TextButton { properties };
 ```
 
 ---
@@ -190,7 +188,7 @@ auto text_button = TextButton { properties };
 
 实现此组件时经过多次权衡。原 Material Design 3 的 Switch 规则过于复杂，一些参数（如 Handle 的膨胀拉伸形变系数）未给出明确定义。基于曲线函数的动画在打断时表现不自然。最终决定大体复现 MD3 外观设计，使用弹簧物理模拟替代曲线动画，简化了按压和拉伸动画。
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 完整属性列表参考[源代码](../creeper-qt/widget/switch.hh#L60-L106)，主要属性包括：
 
@@ -207,9 +205,7 @@ using namespace creeper;
 auto switch_widget = new Switch {
     _switch::pro::TrackColorChecked { QColor("#2196F3") },
     _switch::pro::HandleColorChecked { QColor("#FFFFFF") },
-    _switch::pro::Clickable { [](auto& self) {
-        qDebug() << "开关状态:" << self.isChecked();
-    }}
+    _switch::pro::Clickable { [](auto& self) { qDebug() << "开关状态:" << self.isChecked(); } },
 };
 ```
 
@@ -223,7 +219,7 @@ auto switch_widget = new Switch {
 
 命名空间：`creeper::text_field::pro`
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -241,23 +237,21 @@ auto switch_widget = new Switch {
 using namespace creeper;
 
 auto text_field = new FilledTextField {
-    text_field::pro::ThemeManager { manager },
+    manager,
     text_field::pro::LabelText { "用户名" },
     text_field::pro::FixedSize { 250, 56 },
-    text_field::pro::OnTextChanged { [](const QString& text) {
-        qDebug() << "输入内容:" << text;
-    }}
+    text_field::pro::OnTextChanged { [](const QString& text) { qDebug() << "输入内容:" << text; } },
 };
 
 // 带前置图标
 auto search_field = new FilledTextField {
-    text_field::pro::ThemeManager { manager },
+    manager,
     text_field::pro::LeadingIcon {
-        material::icon::kSearch,
-        material::round::font
+      material::icon::kSearch,
+      material::round::font,
     },
     text_field::pro::LabelText { "搜索" },
-    text_field::pro::ClearButton { true }
+    text_field::pro::ClearButton { true },
 };
 
 // 与 MutableValue 绑定
@@ -265,12 +259,12 @@ auto text_value = std::make_shared<MutableValue<QString>>();
 text_value->set_silent("初始值");
 
 auto bound_field = new FilledTextField {
-    text_field::pro::ThemeManager { manager },
+    manager,
     text_field::pro::LabelText { "输入框" },
     MutableForward {
-        text_field::pro::LabelText {},
-        text_value
-    }
+      text_field::pro::LabelText { },
+      text_value,
+    },
 };
 ```
 
@@ -282,18 +276,18 @@ auto bound_field = new FilledTextField {
 
 与 `FilledTextField` 相同的 API，仅外观样式不同（带边框）。
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 ```cpp
 using namespace creeper;
 
 auto outlined_field = new OutlinedTextField {
-    text_field::pro::ThemeManager { manager },
+    manager,
     text_field::pro::LabelText { "密码" },
     text_field::pro::LeadingIcon {
-        "lock",
-        material::round::font
-    }
+      "lock",
+      material::round::font,
+    },
 };
 ```
 
@@ -303,12 +297,12 @@ auto outlined_field = new OutlinedTextField {
 
 命名空间：`creeper::slider::pro`
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
 | `Progress` | `double` | 进度值（0.0 - 1.0） |
-| `Measurements` | `Measurements` | 尺寸配置（支持 Xs, S, M, L, SL 预设） |
+| `Slider::Measurements` | 结构体 | 尺寸配置（直接作为属性传入，支持 Xs, S, M, L, SL 预设） |
 | `OnValueChange` | `[](double){}` | 值改变时的回调函数 |
 | `OnValueChangeFinished` | `[](double){}` | 值改变完成时的回调函数 |
 
@@ -316,14 +310,12 @@ auto outlined_field = new OutlinedTextField {
 using namespace creeper;
 
 auto slider = new Slider {
-    slider::pro::ThemeManager { manager },
-    slider::pro::Measurements { Slider::Measurements::M() },
+    manager,
+    Slider::Measurements::M(),
     slider::pro::FixedHeight { 52 },
     slider::pro::FixedWidth { 300 },
     slider::pro::Progress { 0.5 },
-    slider::pro::OnValueChange { [](double progress) {
-        qDebug() << "进度:" << progress;
-    }}
+    slider::pro::OnValueChange { [](double progress) { qDebug() << "进度:" << progress; } },
 };
 
 // 与 MutableValue 绑定
@@ -331,17 +323,15 @@ auto progress_value = std::make_shared<MutableValue<double>>();
 progress_value->set_silent(0.2);
 
 auto bound_slider = new Slider {
-    slider::pro::ThemeManager { manager },
-    slider::pro::Measurements { Slider::Measurements::S() },
+    manager,
+    Slider::Measurements::S(),
     MutableForward {
-        slider::pro::Progress { 0. },
-        progress_value
+      slider::pro::Progress { 0. },
+      progress_value,
     },
     slider::pro::OnValueChange {
-        [=](double progress) {
-            *progress_value = progress;
-        }
-    }
+      [=](double progress) { *progress_value = progress; },
+    },
 };
 ```
 
@@ -353,7 +343,7 @@ auto bound_slider = new Slider {
 
 对应 Material 3 的 DropdownMenu：在独立弹出窗口中显示的选择列表，自身不占据布局空间，通过 `Anchor` 锚定到其他组件上定位。
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -363,11 +353,11 @@ auto bound_slider = new Slider {
 | `Offset` | `QPoint` | 定位完成后叠加的偏移，RTL 布局下 x 方向取反 |
 | `ContainerColor` | `QColor` | 覆盖容器颜色，默认取自主题 `surface_container` |
 | `CornerRadius` | `double` | 容器圆角半径，默认 4 |
-| `Item<T>` | `T* / 构造参数` | 向内容列追加菜单项，通常为 `DropdownMenuItem` |
+| `MenuWidget<T>` | `T* / 构造参数` | 向内容列追加菜单项，通常为 `DropdownMenuItem` |
 
 菜单是**受控组件**：点击菜单外部或 Esc 时菜单自行收起并发出 `OnDismissRequest`，应用应在其中把绑定状态置回 `false`；点击菜单项**不会**自动关闭菜单，需要在 `OnClicked` 中显式收起。内容超出可用高度时自动滚动，支持方向键导航。与标准的差异：`scrollState`、`properties`、`tonalElevation`、`shadowElevation`、`border` 未暴露，阴影取自主题。
 
-推荐用 `widget::pro::Child<T>` 把菜单声明式地挂进锚组件：菜单以锚组件为 parent（缺省锚），不占布局空间，随锚组件自动销毁。
+推荐用 `api::scope::widget::Child<T>` 把菜单声明式地挂进锚组件：菜单以锚组件为 parent（缺省锚），不占布局空间，随锚组件自动销毁。
 
 ```cpp
 using namespace creeper;
@@ -378,23 +368,23 @@ namespace fbp  = creeper::filled_button::pro;
 auto expanded = std::make_shared<MutableBool>(false);
 
 auto button = new FilledButton {
-    fbp::ThemeManager { manager },
+    manager,
     fbp::Text { "打开菜单" },
-    fbp::Clickable { [expanded] { *expanded = true; } },
+    fbp::Clickable { [expanded] { *expanded          = true; } },
     fbp::Child<DropdownMenu> {
-        dmp::ThemeManager { manager },
-        MutableForward { dmp::Expanded { false }, expanded },
-        dmp::OnDismissRequest { [expanded] { *expanded = false; } },
-        dmp::Item<DropdownMenuItem> {
-            dmip::ThemeManager { manager },
-            dmip::Text { "选项1" },
-            dmip::OnClicked { [expanded] { *expanded = false; } },
-        },
-        dmp::Item<DropdownMenuItem> {
-            dmip::ThemeManager { manager },
-            dmip::Text { "选项2" },
-            dmip::OnClicked { [expanded] { *expanded = false; } },
-        },
+      manager,
+      MutableForward { dmp::Expanded { false }, expanded },
+      dmp::OnDismissRequest { [expanded] { *expanded = false; } },
+      dmp::MenuWidget<DropdownMenuItem> {
+        manager,
+        dmip::Text { "选项1" },
+        dmip::OnClicked { [expanded] { *expanded     = false; } },
+      },
+      dmp::MenuWidget<DropdownMenuItem> {
+        manager,
+        dmip::Text { "选项2" },
+        dmip::OnClicked { [expanded] { *expanded = false; } },
+      },
     },
 };
 ```
@@ -403,7 +393,7 @@ auto button = new FilledButton {
 
 ```cpp
 auto menu = new DropdownMenu {
-    dmp::ThemeManager { manager },
+    manager,
     dmp::Anchor { some_other_widget },
     // ...
 };
@@ -415,7 +405,7 @@ auto menu = new DropdownMenu {
 
 命名空间：`creeper::dropdown_menu_item::pro`
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -428,7 +418,7 @@ auto menu = new DropdownMenu {
 
 ```cpp
 auto item = new DropdownMenuItem {
-    dmip::ThemeManager { manager },
+    manager,
     dmip::Text { "编辑" },
     dmip::LeadingIcon { material::icon::kEdit, material::round::font },
     dmip::OnClicked { [] { /* ... */ } },
@@ -441,7 +431,7 @@ auto item = new DropdownMenuItem {
 
 命名空间：`creeper::image::pro`
 
-继承属性：`creeper::widget::pro`
+继承属性：`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -461,13 +451,13 @@ auto image = new Image {
     image::pro::FixedSize { 200, 200 },
     image::pro::Radius { 10 },
     image::pro::BorderWidth { 2 },
-    image::pro::BorderColor { QColor("#000000") }
+    image::pro::BorderColor { QColor("#000000") },
 };
 
 auto scaled_image = new Image {
     image::pro::Pixmap { QPixmap("path/to/image.png") },
     image::pro::ContentScale { ContentScale::Fit },
-    image::pro::FixedSize { 300, 300 }
+    image::pro::FixedSize { 300, 300 },
 };
 ```
 
@@ -477,7 +467,7 @@ auto scaled_image = new Image {
 
 命名空间：`creeper::text::pro`
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -492,19 +482,19 @@ auto scaled_image = new Image {
 using namespace creeper;
 
 auto text = new Text {
-    text::pro::ThemeManager { manager },
+    manager,
     text::pro::Text { "Hello World" },
-    text::pro::Alignment { Qt::AlignCenter }
+    text::pro::Alignment { Qt::AlignCenter },
 };
 
 // 可选择的文本
 auto selectable_text = new Text {
-    text::pro::ThemeManager { manager },
+    manager,
     text::pro::Text { "可选择的文本内容" },
     text::pro::WordWrap { true },
     text::pro::TextInteractionFlags {
-        Qt::TextInteractionFlag::TextSelectableByMouse
-    }
+      Qt::TextInteractionFlag::TextSelectableByMouse,
+    },
 };
 
 // 与 MutableValue 绑定
@@ -512,11 +502,11 @@ auto text_value = std::make_shared<MutableValue<QString>>();
 text_value->set_silent("初始文本");
 
 auto bound_text = new Text {
-    text::pro::ThemeManager { manager },
+    manager,
     MutableForward {
-        text::pro::Text {},
-        text_value
-    }
+      text::pro::Text { },
+      text_value,
+    },
 };
 ```
 
@@ -528,7 +518,7 @@ auto bound_text = new Text {
 
 提供多种样式：`FilledCard`、`OutlinedCard`、`ElevatedCard`、`BasicCard`。
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`、`creeper::rounded_rect::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::rounded_rect::pro`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -544,30 +534,30 @@ using namespace creeper;
 namespace capro = card::pro;
 
 auto filled_card = new FilledCard {
-    capro::ThemeManager { manager },
+    manager,
     capro::Level { CardLevel::HIGHEST },
     capro::Radius { 12 },
     capro::FixedSize { 200, 150 },
-    capro::Layout<Col> {
-        // 卡片内容
-    }
+    new Col {
+      // 卡片内容
+    },
 };
 
 auto outlined_card = new OutlinedCard {
-    capro::ThemeManager { manager },
+    manager,
     capro::LevelLowest,
     capro::Radius { 8 },
-    capro::Layout<Row> {
-        // 卡片内容
-    }
+    new Row {
+      // 卡片内容
+    },
 };
 
 auto elevated_card = new ElevatedCard {
-    capro::ThemeManager { manager },
+    manager,
     capro::LevelHigh,
-    capro::Layout<Col> {
-        // 卡片内容
-    }
+    new Col {
+      // 卡片内容
+    },
 };
 ```
 
@@ -577,7 +567,7 @@ auto elevated_card = new ElevatedCard {
 
 命名空间：`creeper::icon_button::pro`
 
-继承属性：`creeper::util::theme::pro`、`creeper::widget::pro`
+继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -596,20 +586,18 @@ using namespace creeper;
 namespace ibpro = icon_button::pro;
 
 auto icon_button = new IconButton {
-    ibpro::ThemeManager { manager },
+    manager,
     ibpro::FixedSize { 40, 40 },
     ibpro::Color { IconButton::Color::TONAL },
     ibpro::FontIcon { "search" },
-    ibpro::Clickable { [] {
-        qDebug() << "图标按钮被点击";
-    }}
+    ibpro::Clickable { [] { qDebug() << "图标按钮被点击"; } },
 };
 
 // 切换按钮
 auto toggle_button = new IconButton {
-    ibpro::ThemeManager { manager },
+    manager,
     ibpro::Types { IconButton::Types::TOGGLE_UNSELECTED },
-    ibpro::FontIcon { "favorite" }
+    ibpro::FontIcon { "favorite" },
 };
 ```
 
@@ -619,7 +607,7 @@ auto toggle_button = new IconButton {
 
 命名空间：`creeper::main_window::pro`
 
-继承属性：`creeper::widget::pro`
+继承属性：`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -633,11 +621,11 @@ namespace mwpro = main_window::pro;
 creeper::ShowWindow<MainWindow> {
     mwpro::MinimumSize { 1080, 720 },
     mwpro::Central<FilledCard> {
-        card::pro::ThemeManager { manager },
-        card::pro::Layout<Col> {
-            // 窗口内容
-        }
-    }
+      manager,
+      new Col {
+        // 窗口内容
+      },
+    },
 };
 ```
 
@@ -647,7 +635,7 @@ creeper::ShowWindow<MainWindow> {
 
 命名空间：`creeper::wave_circle::pro`
 
-继承属性：`creeper::widget::pro`
+继承属性：`creeper::api::scope::widget`
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -671,7 +659,7 @@ auto wave_circle = new WaveCircle {
     wcpro::ProtrudingRatio { 0.8 },
     wcpro::Background { QColor("#2196F3") },
     wcpro::BorderWidth { 2 },
-    wcpro::BorderColor { QColor("#FFFFFF") }
+    wcpro::BorderColor { QColor("#FFFFFF") },
 };
 ```
 
@@ -685,7 +673,7 @@ auto wave_circle = new WaveCircle {
 
 ```cpp
 auto button = new FilledButton {
-    button::pro::Text { "初始文本" }
+    button::pro::Text { "初始文本" },
 };
 
 button->setText("新文本");
