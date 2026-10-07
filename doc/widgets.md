@@ -6,7 +6,7 @@
 
 ## 通用组件属性
 
-命名空间：`creeper::api::scope::widget`
+命名空间：由各组件的 `pro` 导出（如 `creeper::widget::pro`）
 
 | 属性 | 类型 | 方法 |
 | --- | --- | --- |
@@ -22,7 +22,7 @@
 ### 声明式配置（推荐）
 
 ```cpp
-namespace pro = creeper::api::scope::widget;
+namespace pro = creeper::widget::pro;
 using creeper::Widget;
 
 auto widget = new Widget {
@@ -42,7 +42,7 @@ qwidget->setMinimumSize(100, 050);
 ### 属性复用
 
 ```cpp
-namespace pro = creeper::api::scope::widget;
+namespace pro = creeper::widget::pro;
 using creeper::Widget;
 
 const auto props = std::tuple {
@@ -70,9 +70,7 @@ auto widget_b = new Widget {
 
 ### 通用按钮属性
 
-命名空间：`creeper::button::pro`
-
-按钮组件通过 `using namespace common::pro;` 导入通用属性，无需显式指定模板参数。
+各按钮组件的 `pro` 命名空间（如 `creeper::filled_button::pro`）通过 `using namespace api::scope::*` 组合下列通用属性，无需显式指定模板参数。
 
 | 属性名 | 类型 | 说明 |
 | --- | --- | --- |
@@ -91,16 +89,16 @@ auto widget_b = new Widget {
 
 命名空间：`creeper::filled_button::pro`
 
-继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::button::pro`
+组合属性：`creeper::api::scope::shape`、`creeper::api::scope::theme`、`creeper::api::scope::widget`
 
 ```cpp
 using namespace creeper;
 
 auto button = new FilledButton {
-    button::pro::Text { "提交" },
-    button::pro::Radius { 8.0 },
-    button::pro::Background { QColor("#2196F3") },
-    button::pro::Clickable { [](auto& self) { qDebug() << "按钮被点击"; } },
+    filled_button::pro::Text { "提交" },
+    filled_button::pro::Radius { 8.0 },
+    filled_button::pro::Background { QColor("#2196F3") },
+    filled_button::pro::Clickable { [](auto& self) { qDebug() << "按钮被点击"; } },
 };
 ```
 
@@ -112,7 +110,7 @@ auto button = new FilledButton {
 
 与 `FilledButton` 相同的 API，仅配色方案不同。
 
-继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::button::pro`
+继承属性：`creeper::api::scope::shape`、`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::filled_button::pro`
 
 ---
 
@@ -122,7 +120,7 @@ auto button = new FilledButton {
 
 与 `FilledButton` 相同的 API，仅配色方案不同。
 
-继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::button::pro`
+继承属性：`creeper::api::scope::shape`、`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::filled_button::pro`
 
 ---
 
@@ -132,7 +130,7 @@ auto button = new FilledButton {
 
 与 `FilledButton` 相同的 API，仅配色方案不同。
 
-继承属性：`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::button::pro`
+继承属性：`creeper::api::scope::shape`、`creeper::api::scope::theme`、`creeper::api::scope::widget`、`creeper::filled_button::pro`
 
 ---
 
@@ -206,6 +204,67 @@ auto switch_widget = new Switch {
     _switch::pro::TrackColorChecked { QColor("#2196F3") },
     _switch::pro::HandleColorChecked { QColor("#FFFFFF") },
     _switch::pro::Clickable { [](auto& self) { qDebug() << "开关状态:" << self.isChecked(); } },
+};
+```
+
+---
+
+### Checkbox 复选框
+
+命名空间：`creeper::checkbox::pro`
+
+继承属性：`creeper::api::scope::common`、`creeper::api::scope::theme`、`creeper::api::scope::widget`
+
+| 属性名 | 类型 | 说明 |
+| --- | --- | --- |
+| `Checked` | `bool` | 是否选中（映射到 `setChecked`） |
+| `Disabled` | `bool` | 是否禁用 |
+| `Error` | `bool` | 错误态（容器/描边用 `error`、图标用 `on_error`） |
+| `CheckState` | `Checkbox::CheckState` | 三态：`UNSELECTED` / `SELECTED` / `INDETERMINATE` |
+| `Measurements` | `Checkbox::Measurements` | 尺寸度量 |
+| `Colors` | `Checkbox::Colors` | 颜色规格 |
+| `Clickable` | `[](self){}` | 点击回调 |
+| `OnCheckStateChanged` | `[](CheckState){}` | 勾选状态变化回调 |
+
+`Colors` 按状态分组，对应 Compose `CheckboxColors`：
+
+- 外层三状态：`enabled` / `disabled` / `error`；
+- 每状态含三种勾选态：`checked` / `unchecked` / `indeterminate`；
+- 每态含四个 token：`checkmark` / `box` / `border` / `state_layer`；
+- 顶层另有一份 `focus_ring`（焦点环颜色）。
+
+```cpp
+using namespace creeper;
+
+auto checkbox = new Checkbox {
+    manager,
+    checkbox::pro::Checked { true },
+    checkbox::pro::OnCheckStateChanged {
+      [](Checkbox::CheckState state) { qDebug() << "状态:" << int(state); },
+    },
+};
+
+// 三态
+auto tri = new Checkbox {
+    manager,
+    checkbox::pro::CheckState { Checkbox::CheckState::INDETERMINATE },
+};
+
+// 错误配色
+const auto& scheme = manager.colorScheme();
+auto error = new Checkbox {
+    manager,
+    checkbox::pro::Colors {
+      .error = {
+        .checked       = { .checkmark = scheme.on_error, .box = scheme.error, .border = scheme.error,
+                           .state_layer = scheme.error },
+        .unchecked     = { .checkmark = Qt::transparent, .box = Qt::transparent,
+                           .border = scheme.error, .state_layer = scheme.error },
+        .indeterminate = { .checkmark = scheme.on_error, .box = scheme.error, .border = scheme.error,
+                           .state_layer = scheme.error },
+      },
+      .focus_ring = scheme.secondary,
+    },
 };
 ```
 
@@ -357,7 +416,7 @@ auto bound_slider = new Slider {
 
 菜单是**受控组件**：点击菜单外部或 Esc 时菜单自行收起并发出 `OnDismissRequest`，应用应在其中把绑定状态置回 `false`；点击菜单项**不会**自动关闭菜单，需要在 `OnClicked` 中显式收起。内容超出可用高度时自动滚动，支持方向键导航。与标准的差异：`scrollState`、`properties`、`tonalElevation`、`shadowElevation`、`border` 未暴露，阴影取自主题。
 
-推荐用 `api::scope::widget::Child<T>` 把菜单声明式地挂进锚组件：菜单以锚组件为 parent（缺省锚），不占布局空间，随锚组件自动销毁。
+推荐用 `Child<T>`（由组件自己的 `pro` 导出，如 `dmp::Child<T>`）把菜单声明式地挂进锚组件：菜单以锚组件为 parent（缺省锚），不占布局空间，随锚组件自动销毁。
 
 ```cpp
 using namespace creeper;
@@ -673,7 +732,7 @@ auto wave_circle = new WaveCircle {
 
 ```cpp
 auto button = new FilledButton {
-    button::pro::Text { "初始文本" },
+    filled_button::pro::Text { "初始文本" },
 };
 
 button->setText("新文本");
